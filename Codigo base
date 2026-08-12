@@ -1,0 +1,76 @@
+"""
+INSTITUTO TECNOLÓGICO DE LAS AMÉRICAS (ITLA)
+Centro de Excelencia de Seguridad Informática
+
+PROYECTO FINAL: PROPUESTA METODOLÓGICA DE UN SISTEMA DE DETECCIÓN DE ANOMALÍAS
+Autor: Grupo 7 (Steven Mendez, Keirys Familia, Yojhairy Zapata)
+Asesor: Nelson Mieses
+Algoritmo: Isolation Forest (Machine Learning No Supervisado)
+
+Descripción: Script de simulación de referencia para validar conceptualmente 
+la viabilidad matemática del aislamiento de anomalías sobre el vector de entrada 
+Xi = [F1, F2, F3, F4, F5] en ventanas temporales de 5 minutos.
+"""
+
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import classification_report, confusion_matrix
+
+print("Iniciando Simulación Matemática de Referencia...")
+
+# 1. Configuración de parámetros y reproducibilidad
+np.random.seed(42)
+num_normales = 4900
+num_anomalias = 100  # Contaminación del 2.0% (contamination = 0.02)
+
+# 2. Generación sintética de tráfico legítimo (Línea Base)
+# Variables: [F1 (Frecuencia), F2 (Ratio fallas), F3 (Diversidad IP), F4 (Volumen MB), F5 (Anomalía horaria)]
+normal_f1 = np.random.poisson(lam=3, size=num_normales)                # Pocas autenticaciones
+normal_f2 = np.random.beta(a=1, b=5, size=num_normales)                # Ratio de fallas bajo
+normal_f3 = np.random.choice([1, 2], p=[0.95, 0.05], size=num_normales) # Acceso desde 1 o 2 IPs
+normal_f4 = np.random.lognormal(mean=1.5, sigma=0.5, size=num_normales)# Volumen bajo/moderado
+normal_f5 = np.random.choice([1], p=[0.90, 0.10], size=num_normales) # Principalmente horario regular
+
+X_normal = np.column_stack((normal_f1, normal_f2, normal_f3, normal_f4, normal_f5))
+
+# 3. Generación sintética de escenarios de ataque (Anomalías Inyectadas)
+# Escenario 1: Fuerza Bruta / Escenario 2: Exfiltración / Escenario 3: Privilegios
+ataque_f1 = np.random.randint(40, 100, size=num_anomalias)             # Alta frecuencia
+ataque_f2 = np.random.uniform(0.8, 1.0, size=num_anomalias)            # Ratio fallas extremo
+ataque_f3 = np.random.randint(3, 8, size=num_anomalias)                # Multiples IPs
+ataque_f4 = np.random.uniform(500, 2000, size=num_anomalias)           # Volumen de datos extremo
+ataque_f5 = np.ones(num_anomalias)                                     # Evento asíncrono (1.0)
+
+X_ataque = np.column_stack((ataque_f1, ataque_f2, ataque_f3, ataque_f4, ataque_f5))
+
+# 4. Consolidación de datos y etiquetas de validación (Ground Truth)
+X_raw = np.vstack((X_normal, X_ataque))
+y_true = np.array([1] * num_normales + [-1] * num_anomalias) # 1: normal, -1: anomalía en Isolation Forest
+
+# 5. Preprocesamiento: Normalización (MinMaxScaler)
+scaler = MinMaxScaler()
+X_scaled = scaler.fit_transform(X_raw)
+
+# 6. Modelado y Parametrización del Isolation Forest (No Supervisado)
+clf = IsolationForest(
+    n_estimators=100, 
+    contamination=0.02, 
+    random_state=42
+)
+clf.fit(X_scaled)
+
+# 7. Evaluación Matemática del Desempeño
+y_pred = clf.predict(X_scaled)
+
+# Mapear predicciones para el reporte estándar de clasificación (normal=0, anomalía=1)
+y_true_mapped = np.where(y_true == -1, 1, 0)
+y_pred_mapped = np.where(y_pred == -1, 1, 0)
+
+print("\n--- REPORTE DE CLASIFICACIÓN (MÉTRICAS CONCEPTUALES) ---")
+print(classification_report(y_true_mapped, y_pred_mapped, target_names=["Tráfico Legítimo", "Anomalía/Ataque"]))
+
+print("Matriz de Confusión:")
+print(confusion_matrix(y_true_mapped, y_pred_mapped))
+print("\nSimulación concluida con éxito. Algoritmo calibrado dinámicamente.")
